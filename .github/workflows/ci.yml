@@ -42,10 +42,34 @@ jobs:
         run: |
           python -m py_compile app.py
 
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit
+
+      - name: Scan Python dependencies
+        working-directory: app
+        run: |
+          pip-audit -r requirements.txt
+
   build-and-scan:
     name: Build and Scan Docker Image
     runs-on: ubuntu-latest
-    needs: test
+    needs: dependency-scan
 
     steps:
       - name: Checkout repository
@@ -152,10 +176,22 @@ jobs:
 
       - name: Verify application health
         run: |
-          aws ssm send-command \
+          COMMAND_ID=$(aws ssm send-command \
             --region "$AWS_REGION" \
             --instance-ids "$EC2_INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --parameters 'commands=["curl -fsS http://localhost:5000/health"]' \
             --query 'Command.CommandId' \
+            --output text)
+
+          aws ssm wait command-executed \
+            --region "$AWS_REGION" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --command-id "$COMMAND_ID"
+
+          aws ssm get-command-invocation \
+            --region "$AWS_REGION" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --command-id "$COMMAND_ID" \
+            --query 'StandardOutputContent' \
             --output text
