@@ -195,3 +195,47 @@ jobs:
             --command-id "$COMMAND_ID" \
             --query 'StandardOutputContent' \
             --output text
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    environment:
+      name: production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::109131608993:role/8byte-devops-github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy production container
+        run: |
+          COMMAND_ID=$(aws ssm send-command \
+            --region "$AWS_REGION" \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters "commands=[
+              \"aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 109131608993.dkr.ecr.ap-south-1.amazonaws.com\",
+              \"docker pull ${{ needs.push-to-ecr.outputs.image }}\",
+              \"docker rm -f 8byte-devops-app 2>/dev/null || true\",
+              \"docker run -d --name 8byte-devops-app --restart unless-stopped -p 5000:5000 ${{ needs.push-to-ecr.outputs.image }}\",
+              \"curl -fsS http://localhost:5000/health\"
+            ]" \
+            --query 'Command.CommandId' \
+            --output text)
+
+          echo "Production deployment command: $COMMAND_ID"
+
+          aws ssm wait command-executed \
+            --region "$AWS_REGION" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --command-id "$COMMAND_ID"
+
+          aws ssm get-command-invocation \
+            --region "$AWS_REGION" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --command-id "$COMMAND_ID" \
+            --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}' \
+            --output json
