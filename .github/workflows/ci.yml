@@ -1,9 +1,10 @@
-name: CI - Build Scan Push Deploy
+name: CI - DevSecOps Build Scan Push Deploy
 
 on:
   push:
     branches:
       - main
+
   pull_request:
     branches:
       - main
@@ -11,24 +12,30 @@ on:
 permissions:
   contents: read
   id-token: write
+  security-events: write
 
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: 8byte-devops-app
   EC2_INSTANCE_ID: i-069ff176c6aae4653
+  APP_IMAGE: 8byte-devops-app
 
 jobs:
 
+  # ============================================================
+  # 1. UNIT TESTS
+  # ============================================================
+
   test:
-    name: Test Application
+    name: Unit Tests
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -44,6 +51,124 @@ jobs:
           pytest -v
 
 
+  # ============================================================
+  # 2. INTEGRATION TESTS
+  # ============================================================
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build application image
+        run: |
+          docker build \
+            -t $APP_IMAGE:integration-test \
+            ./app
+
+      - name: Start application container
+        run: |
+          docker run -d \
+            --name $APP_IMAGE-test \
+            -p 5000:5000 \
+            $APP_IMAGE:integration-test
+
+      - name: Wait for application
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:5000/health; then
+              echo
+              echo "Application is ready"
+              exit 0
+            fi
+
+            echo "Waiting for application..."
+            sleep 2
+          done
+
+          echo "Application failed to become ready"
+          docker logs $APP_IMAGE-test
+          exit 1
+
+      - name: Test health endpoint
+        run: |
+          curl -fsS http://localhost:5000/health
+
+      - name: Test application endpoint
+        run: |
+          curl -fsS http://localhost:5000/
+
+      - name: Container logs
+        if: always()
+        run: |
+          docker logs $APP_IMAGE-test
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f $APP_IMAGE-test || true
+
+
+  # ============================================================
+  # 3. SEMGREP SAST
+  # ============================================================
+
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    needs: test
+
+    container:
+      image: semgrep/semgrep
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Run Semgrep
+        run: |
+          semgrep scan \
+            --config auto \
+            --error \
+            --json \
+            --output semgrep-results.json \
+            .
+
+      - name: Display Semgrep results
+        if: always()
+        run: |
+          cat semgrep-results.json || true
+
+
+  # ============================================================
+  # 4. GITLEAKS SECRET SCANNING
+  # ============================================================
+
+  gitleaks:
+    name: Gitleaks Secret Scan
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+  # ============================================================
+  # 5. PIP-AUDIT DEPENDENCY SCAN
+  # ============================================================
+
   dependency-scan:
     name: Dependency Vulnerability Scan
     runs-on: ubuntu-latest
@@ -51,10 +176,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -69,46 +194,149 @@ jobs:
           pip-audit -r requirements.txt
 
 
-  build-and-scan:
-    name: Build and Scan Docker Image
+  # ============================================================
+  # 6. SNYK DEPENDENCY SCAN
+  # ============================================================
+
+  snyk-dependency:
+    name: Snyk Dependency Scan
     runs-on: ubuntu-latest
-    needs: dependency-scan
+    needs: test
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: app
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Snyk
+        run: |
+          npm install -g snyk
+
+      - name: Authenticate Snyk
+        run: |
+          snyk auth "${{ secrets.SNYK_TOKEN }}"
+
+      - name: Scan Python dependencies with Snyk
+        working-directory: app
+        run: |
+          snyk test \
+            --file=requirements.txt \
+            --package-manager=pip
+
+
+  # ============================================================
+  # 7. SONARCLOUD CODE QUALITY + SECURITY
+  # ============================================================
+
+  sonar:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    needs:
+      - test
+      - semgrep
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+            -Dsonar.sources=app
+            -Dsonar.tests=app/tests
+            -Dsonar.python.version=3.12
+
+
+  # ============================================================
+  # 8. BUILD + TRIVY + SNYK CONTAINER SCANNING
+  # ============================================================
+
+  build-and-scan:
+    name: Build and Container Security Scan
+    runs-on: ubuntu-latest
+
+    needs:
+      - integration-test
+      - dependency-scan
+      - snyk-dependency
+      - semgrep
+      - gitleaks
+      - sonar
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
       - name: Build Docker image
         run: |
           docker build \
-            -t 8byte-devops-app:${{ github.sha }} \
+            -t $APP_IMAGE:${{ github.sha }} \
             ./app
 
-      - name: Run Trivy vulnerability scan
+      - name: Trivy container vulnerability scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 8byte-devops-app:${{ github.sha }}
+          image-ref: ${{ env.APP_IMAGE }}:${{ github.sha }}
           format: table
-          exit-code: "0"
+          exit-code: "1"
           ignore-unfixed: true
           severity: CRITICAL,HIGH
 
+      - name: Install Snyk
+        run: |
+          npm install -g snyk
+
+      - name: Authenticate Snyk
+        run: |
+          snyk auth "${{ secrets.SNYK_TOKEN }}"
+
+      - name: Snyk container vulnerability scan
+        run: |
+          snyk container test \
+            $APP_IMAGE:${{ github.sha }} \
+            --severity-threshold=high
+
+
+  # ============================================================
+  # 9. PUSH IMAGE TO ECR
+  # ============================================================
 
   push-to-ecr:
     name: Push Image to ECR
     runs-on: ubuntu-latest
+
     needs: build-and-scan
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
 
     outputs:
       image: ${{ steps.image.outputs.image }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::109131608993:role/8byte-devops-github-actions
           aws-region: ${{ env.AWS_REGION }}
@@ -123,15 +351,19 @@ jobs:
             -t ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
             ./app
 
-      - name: Push Docker image
+      - name: Push immutable image
         run: |
           docker push \
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
+      - name: Tag latest
+        run: |
           docker tag \
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
 
+      - name: Push latest
+        run: |
           docker push \
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
 
@@ -141,15 +373,23 @@ jobs:
           echo "image=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
 
+  # ============================================================
+  # 10. STAGING DEPLOYMENT
+  # ============================================================
+
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
+
     needs: push-to-ecr
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
 
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::109131608993:role/8byte-devops-github-actions
           aws-region: ${{ env.AWS_REGION }}
@@ -202,17 +442,29 @@ jobs:
             --output text
 
 
+  # ============================================================
+  # 11. PRODUCTION DEPLOYMENT
+  # ============================================================
+
   deploy-production:
     name: Deploy to Production
+
     runs-on: ubuntu-latest
-    needs: deploy-staging
+
+    needs:
+      - push-to-ecr
+      - deploy-staging
+
     environment:
       name: production
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
 
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::109131608993:role/8byte-devops-github-actions
           aws-region: ${{ env.AWS_REGION }}
@@ -246,3 +498,62 @@ jobs:
             --command-id "$COMMAND_ID" \
             --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}' \
             --output json
+
+
+  # ============================================================
+  # 12. FAILURE EMAIL NOTIFICATION
+  # ============================================================
+
+  notify-failure:
+    name: Failure Email Notification
+
+    runs-on: ubuntu-latest
+
+    needs:
+      - test
+      - integration-test
+      - semgrep
+      - gitleaks
+      - dependency-scan
+      - snyk-dependency
+      - sonar
+      - build-and-scan
+      - push-to-ecr
+      - deploy-staging
+      - deploy-production
+
+    if: >
+      always() &&
+      contains(needs.*.result, 'failure')
+
+    steps:
+      - name: Send failure email
+        uses: dawidd6/action-send-mail@v6
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "DevSecOps Pipeline Failed - ${{ github.repository }}"
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: ${{ secrets.SMTP_FROM_EMAIL }}
+          secure: true
+          body: |
+            DevSecOps pipeline failure detected.
+
+            Repository:
+            ${{ github.repository }}
+
+            Branch:
+            ${{ github.ref_name }}
+
+            Commit:
+            ${{ github.sha }}
+
+            Workflow:
+            ${{ github.workflow }}
+
+            Run:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Please check the failed GitHub Actions job for details.
