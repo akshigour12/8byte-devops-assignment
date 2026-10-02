@@ -1,4 +1,3 @@
-```yaml
 name: CI - Build Scan Push Deploy
 
 on:
@@ -247,4 +246,3 @@ jobs:
             --command-id "$COMMAND_ID" \
             --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}' \
             --output json
-```
