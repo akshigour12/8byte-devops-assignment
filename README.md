@@ -546,6 +546,8 @@ CloudWatch alarms provide baseline operational alerting.
 ### 📸 Alarm Evidence
 
 ![CloudWatch Alarms](docs/screenshots/cloudwatch-alarms.png)
+
+---
 # 📝 Centralized Logging
 
 Application, system, and **Application Load Balancer (ALB)** logs are centralized using **Amazon CloudWatch Logs**.
