@@ -32,8 +32,7 @@ The solution is designed around a secure AWS architecture with a public-facing *
 
 ## 🖼️ AWS Architecture Diagram
 
-![8Byte DevOps & DevSecOps Architecture](architecture/8Byte AWS DevSecOps Architecture.png)
-
+![8Byte DevOps & DevSecOps Architecture](docs/screenshots/8Byte%20AWS%20DevSecOps%20Architecture.png)
 
 ---
 
