@@ -38,10 +38,8 @@ EC2
    |
    v
 RDS
-
-RDS is deployed in private subnets.
-
 ```
+RDS is deployed in private subnets.
 
 ## 3. Terraform State
 
