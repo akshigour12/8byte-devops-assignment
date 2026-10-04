@@ -36,8 +36,8 @@ The Flask dependency was updated to:
 
 ```text
 Flask==3.1.3
-
 ```
+
 ## 3. Dependency Vulnerability in pytest
 
 ### Problem
