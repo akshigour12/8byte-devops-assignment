@@ -37,7 +37,7 @@ The Flask dependency was updated to:
 ```text
 Flask==3.1.3
 ```
-
+---
 ## 3. Dependency Vulnerability in pytest
 
 ### Problem
@@ -74,6 +74,8 @@ The resulting image was scanned using **Trivy** and **Snyk**.
 
 The application dependencies had no vulnerable paths reported by the dependency scan, and the configured CI checks passed.
 
+---
+
 ## 5. Semgrep Scanning Workflow Syntax
 
 ### Problem
@@ -97,6 +99,7 @@ The local Semgrep scan reported:
 ```text
 Findings: 0
 ```
+---
 
 ## 6. Application Container Startup
 
