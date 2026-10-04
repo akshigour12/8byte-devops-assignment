@@ -1,258 +1,158 @@
-Approach Documentation
+# Implementation Approach
 
-1. Objective
+## 1. Infrastructure
 
-The assignment was implemented as a small but production-oriented DevOps/DevSecOps workflow. The application logic was intentionally kept simple so that the main focus remained on infrastructure, automation, security, deployment, monitoring, and operational practices.
+Terraform is used to provision AWS infrastructure using reusable modules.
 
-2. Infrastructure Approach
+Main components:
 
-Terraform was selected for AWS infrastructure provisioning.
+- VPC
+- Public and private subnets
+- Security Groups
+- EC2
+- Application Load Balancer
+- RDS PostgreSQL
 
-The infrastructure was divided into reusable modules:
+---
 
-VPC
+## 2. Networking
 
-Security Groups
+The architecture uses:
 
+- VPC: `10.0.0.0/16`
+- 2 public subnets
+- 2 private subnets
+- Internet Gateway
+- No NAT Gateway to reduce cost
+
+Traffic flow:
+
+```text
+Internet
+   |
+   v
+ALB
+   |
+   v
 EC2
-
+   |
+   v
 RDS
 
-ALB
 
-The network uses:
+RDS is deployed in private subnets.
+## 3. Terraform State
 
-One VPC
+Terraform state is stored remotely in **Amazon S3**.
 
-Two public subnets
+State protection includes:
 
-Two private subnets
+- 🔐 Encryption
+- 🗂️ Versioning
+- 🚫 Public access blocking
+- 🔒 Terraform state locking
 
-Internet Gateway
+---
 
-Public route table
+## 4. Application
 
-The application EC2 instance is placed in a public subnet because the assignment uses a simple cost-controlled deployment without a NAT Gateway. The database is placed in private subnets and is not publicly accessible.
+A lightweight **Flask application** is containerized using Docker.
 
-A NAT Gateway was intentionally avoided to control assignment cost.
+The application provides the following endpoints:
 
-3. State Management
+| Endpoint | Purpose |
+|---|---|
+| `/` | Application root |
+| `/health` | Application health check |
 
-Terraform state is stored remotely in an encrypted S3 bucket with versioning and public-access blocking.
+**Gunicorn** is used as the production application server.
 
-The S3 backend uses Terraform's lockfile mechanism for state locking.
+The container runs as a **non-root user** for improved security.
 
-Terraform state files are excluded from Git.
+---
 
-4. Application and Container Approach
+## 5. CI/CD
 
-A lightweight Flask application provides:
+**GitHub Actions** is used for the CI/CD pipeline.
 
-/
+The pipeline performs the following checks:
 
-/health
+- 🧪 Unit testing
+- 🔗 Integration testing
+- 🔍 Semgrep
+- 🔐 Gitleaks
+- 📦 pip-audit
+- 🛡️ Snyk
+- 📊 SonarCloud
+- 🐳 Trivy
 
-Gunicorn is used as the production application server.
+Successful builds are pushed to **Amazon ECR**.
 
-The Docker image uses:
+## 6. Deployment
 
-Python 3.12 Alpine
+**AWS Systems Manager (SSM)** is used for EC2 deployment instead of SSH.
 
-Multi-stage build
+### Deployment Flow
 
-Non-root application user
-
-Gunicorn
-
-Port 5000
-
-This keeps the image small and reduces unnecessary runtime privileges.
-
-5. CI/CD Approach
-
-GitHub Actions was selected for CI/CD.
-
-The pipeline is divided into validation, security, build, registry, and deployment stages.
-
-Pull Request / Validation
-
-The workflow performs:
-
-Unit tests
-
-Integration tests
-
-Semgrep SAST
-
-Gitleaks secret scanning
-
-pip-audit dependency scanning
-
-Snyk dependency scanning
-
-SonarCloud analysis
-
-Docker build
-
-Trivy container scanning
-
-Snyk container scanning
-
-Main Branch
-
-After successful checks on main:
-
-Docker image is tagged with the Git commit SHA.
-
-Image is pushed to Amazon ECR.
-
-Staging deployment is performed.
-
-Application health is verified.
-
-Production waits for manual approval.
-
-Production deployment is performed.
-
-Application health is verified again.
-
-6. AWS Authentication
-
-GitHub Actions uses AWS IAM OIDC.
-
-This avoids storing long-lived AWS access keys in GitHub.
-
-The IAM trust policy restricts the GitHub repository and permitted deployment contexts.
-
-7. Deployment Approach
-
-AWS Systems Manager is used instead of SSH.
-
-The deployment process:
-
+```text
 GitHub Actions
       |
       v
-OIDC -> AWS
+Amazon ECR
       |
       v
-ECR Authentication
+AWS Systems Manager
       |
       v
-Pull Image on EC2
+EC2
       |
       v
-Replace Running Container
-      |
-      v
-Health Check
+Docker + Gunicorn
 
-A readiness loop was added so the pipeline waits for the application to become available instead of assuming the container is immediately ready.
+**Amazon CloudWatch** is used for monitoring and logging.
 
-8. Database Approach
+### 📊 Monitoring Dashboards
 
-Amazon RDS PostgreSQL is deployed in private subnets.
+Dashboards monitor:
 
-The database security group accepts port 5432 only from the application security group.
+- EC2 CPU, memory, and disk utilization
+- RDS metrics
+- ALB request count
+- HTTP errors
+- Application latency
+- Target health
 
-RDS storage is encrypted.
+### 📝 Centralized Logging
 
-Automated backups are configured with one-day retention for the assignment.
+Logs are centralized in the following CloudWatch log groups:
 
-Database credentials are generated with Terraform and stored in AWS Secrets Manager.
-
-9. Monitoring Approach
-
-CloudWatch is used for infrastructure and application observability.
-
-Infrastructure
-
-The CloudWatch Agent provides custom:
-
-mem_used_percent
-
-disk_used_percent
-
-EC2 CPU and RDS metrics are provided through AWS service metrics.
-
-Application
-
-ALB metrics provide:
-
-Request count
-
-4xx responses
-
-5xx responses
-
-Latency
-
-Healthy targets
-
-Unhealthy targets
-
-Logging
-
-Application Docker logs are sent to:
-
+```text
 /8byte-devops/application
-
-System journal logs are exported and sent to:
-
 /8byte-devops/system
 
-10. Security Approach
+## 10. Security & Cost
 
-Security was integrated into the pipeline rather than treated as a separate final step.
+### 🔐 Security
 
-Controls include:
+Security is integrated throughout the implementation using:
 
-SAST
+- **IAM**
+- **OIDC**
+- **Security Groups**
+- **IMDSv2**
+- **Private RDS**
+- **AWS Secrets Manager**
+- **Semgrep**
+- **Gitleaks**
+- **Snyk**
+- **Trivy**
 
-Secret scanning
+### 💰 Cost Optimization
 
-Dependency scanning
+Cost is controlled using:
 
-Container scanning
-
-Non-root containers
-
-Restricted security groups
-
-Private database
-
-IAM/OIDC
-
-IMDSv2
-
-Encrypted storage
-
-Secrets Manager
-
-11. Cost Approach
-
-The assignment environment was intentionally kept small.
-
-Cost-control decisions included:
-
-Small EC2 instance
-
-Small RDS instance
-
-No NAT Gateway
-
-Lightweight Docker image
-
-Limited CloudWatch metric collection
-
-Minimal infrastructure required to demonstrate the requested architecture
-
-12. Deployment Promotion
-
-The current workflow uses a manual GitHub production approval after successful staging deployment.
-
-For this assignment, the staging and production workflow stages use the same EC2 deployment target. The approval gate demonstrates controlled promotion without adding a second production infrastructure stack and its additional cost.
-
-13. Result
-
-The final implementation provides a reproducible infrastructure definition, automated DevSecOps pipeline, controlled deployment process, centralized monitoring/logging, database backup, and secret management.
+- `t3.micro` EC2 instance
+- Small RDS instance
+- No NAT Gateway
+- Lightweight container
+- Assignment-sized infrastructure
