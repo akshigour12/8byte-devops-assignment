@@ -30,6 +30,11 @@ The application is intentionally lightweight so the project focuses on the **inf
 
 The solution is designed around a secure AWS architecture with a public-facing **Application Load Balancer**, a containerized application running on **EC2**, and a **PostgreSQL database** hosted in private subnets.
 
+## 🖼️ AWS Architecture Diagram
+
+![8Byte DevOps & DevSecOps Architecture](architecture/8byte-architecture-diagram.png)
+
+
 ---
 
 ## 📐 Application Flow
