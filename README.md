@@ -510,9 +510,9 @@ The infrastructure dashboard monitors:
 - RDS free storage
 - System logs
 
-### 📊 Infrastructure Dashboard
+### 📸 Infrastructure Dashboard
 
-The **8Byte-Infrastructure** dashboard provides visibility into infrastructure-level resource utilization and system health.
+![8Byte Infrastructure Dashboard](docs/screenshots/infrastructure-dashboard.png)
 
 ---
 
@@ -529,58 +529,19 @@ The application dashboard monitors:
 - Application logs
 - ALB access logs
 
-### 📊 Application Dashboard
+### 📸 Application Dashboard
 
-The **8Byte-Application** dashboard provides visibility into application performance, request behavior, target health, and application logs.
-
----
-
-# 🚨 CloudWatch Alarms
-
-CloudWatch alarms provide baseline operational alerting for the AWS environment.
-
----
-
-## 🚨 Configured Alarms
-
-| **Alarm** | **Metric** | **Condition** | **Current State** |
-|---|---|---|---|
-| `EC2_Alarm` | EC2 CPUUtilization | `>= 80%` for 5 minutes | `OK` |
-| `RDS_CPU_Alarm` | RDS CPUUtilization | `>= 80%` for 1 minute | `OK` |
-
----
-
-## 📋 Alarm Evidence
-
-The configured alarms provide baseline monitoring for **EC2** and **RDS CPU utilization**.
-
-These alarms can be extended with additional application-specific thresholds as workload requirements grow.
+![8Byte Application Dashboard](docs/screenshots/application-dashboard.png)
 
 ---
 
 # 🚨 CloudWatch Alarms
 
-CloudWatch alarms provide baseline operational alerting for the AWS environment.
+CloudWatch alarms provide baseline operational alerting.
 
----
+### 📸 Alarm Evidence
 
-## 🚨 Configured Alarms
-
-| **Alarm** | **Metric** | **Condition** | **Current State** |
-|---|---|---|---|
-| `EC2_Alarm` | EC2 CPUUtilization | `>= 80%` for 5 minutes | `OK` |
-| `RDS_CPU_Alarm` | RDS CPUUtilization | `>= 80%` for 1 minute | `OK` |
-
----
-
-## 📋 Alarm Evidence
-
-The configured alarms provide baseline monitoring for **EC2** and **RDS CPU utilization**.
-
-These alarms can be extended with additional application-specific thresholds as workload requirements grow.
-
----
-
+![CloudWatch Alarms](docs/screenshots/cloudwatch-alarms.png)
 # 📝 Centralized Logging
 
 Application, system, and **Application Load Balancer (ALB)** logs are centralized using **Amazon CloudWatch Logs**.
