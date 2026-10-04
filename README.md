@@ -1,29 +1,29 @@
 8Byte DevOps & DevSecOps Assignment
-An end-to-end DevOps and DevSecOps implementation on AWS using Terraform, GitHub Actions, Docker, Amazon ECR, EC2, Application Load Balancer, RDS PostgreSQL, AWS Systems Manager, AWS Secrets Manager, and Amazon CloudWatch.
-The project covers infrastructure as code, secure CI/CD, container security, controlled deployment, monitoring, centralized logging, alarms, backup, and operational documentation.
----
-📌 Project Highlights
-Infrastructure provisioned using Terraform
-AWS VPC with 2 public + 2 private subnets
-Dockerized Flask application running on EC2
-Application Load Balancer for application traffic
-RDS PostgreSQL deployed in private subnets
-Docker images stored in Amazon ECR
-GitHub Actions CI/CD pipeline
-GitHub Actions → AWS authentication through OIDC
-Automated unit and integration testing
-SAST, secret, dependency, code-quality, and container scanning
-Staging deployment followed by manual production approval
-AWS Systems Manager used for deployment without SSH access
-CloudWatch dashboards, centralized logs, and alarms
-RDS automated backups
-Database credentials managed with AWS Secrets Manager
-Terraform remote state stored in encrypted Amazon S3
----
+ 
+ 
+ 
+ 
+ 
+An end-to-end DevOps and DevSecOps implementation on AWS covering infrastructure as code, secure CI/CD, container security, controlled deployment, monitoring, centralized logging, alerting, backups, and secret management.
+The application itself is intentionally lightweight so the project can focus on the DevOps/DevSecOps lifecycle.
+📌 What This Project Demonstrates
+- Infrastructure provisioning with Terraform
+- AWS networking with public and private subnets
+- Dockerized Flask application on Amazon EC2
+- Application Load Balancer with health checks
+- Amazon RDS PostgreSQL in private subnets
+- Container image management with Amazon ECR
+- CI/CD with GitHub Actions
+- Keyless AWS authentication using GitHub OIDC
+- Remote deployment using AWS Systems Manager
+- Automated testing and security gates
+- CloudWatch dashboards, centralized logs, and alarms
+- RDS automated backups
+- Database credentials stored in AWS Secrets Manager
+- Encrypted remote Terraform state in Amazon S3
 🏗️ Architecture
-![8Byte DevOps & DevSecOps Architecture](architecture/8byte-architecture-diagram.png)
-Deployment flow
-```text
+ 
+End-to-end flow
 Developer
     |
     v
@@ -55,74 +55,37 @@ Application Load Balancer
     |
     v
 Flask Application
-```
-AWS network flow
-```text
-                         Internet
-                            |
-                         :80/:443
-                            |
-                            v
-                  +-------------------+
-                  | Application Load  |
-                  |    Balancer       |
-                  +-------------------+
-                            |
-                          :5000
-                            |
-                            v
-              +-------------------------+
-              | Public Subnet           |
-              | EC2 + Docker + Gunicorn |
-              +-------------------------+
-                            |
-                          :5432
-                            |
-                            v
-              +-------------------------+
-              | Private Subnet          |
-              | RDS PostgreSQL          |
-              +-------------------------+
-```
----
+    |
+    v
+RDS PostgreSQL
 ☁️ AWS Infrastructure
 Region
-```text
 ap-south-1
-```
 VPC
-```text
 10.0.0.0/16
-```
-Subnets
-```text
-Public:
-  10.0.1.0/24
-  10.0.2.0/24
+Network layout
+VPC
+├── Public Subnet 1
+│   └── ALB / EC2
+├── Public Subnet 2
+│   └── ALB
+├── Private Subnet 1
+│   └── RDS PostgreSQL
+└── Private Subnet 2
+    └── RDS PostgreSQL
+Subnet CIDRs
+Type	CIDR
+Public subnet 1	10.0.1.0/24
+Public subnet 2	10.0.2.0/24
+Private subnet 1	10.0.11.0/24
+Private subnet 2	10.0.12.0/24
 
-Private:
-  10.0.11.0/24
-  10.0.12.0/24
-```
-Main AWS components
-Component	Purpose
-VPC	Network isolation
-Public Subnets	ALB and EC2
-Private Subnets	RDS PostgreSQL
-Internet Gateway	Internet connectivity for public resources
-EC2	Application host
-Docker	Application container
-ALB	Traffic distribution and health checks
-RDS PostgreSQL	Relational database
-ECR	Container image registry
-Systems Manager	Remote deployment/management
-CloudWatch	Monitoring, dashboards, logs and alarms
-Secrets Manager	Database credential storage
-S3	Terraform remote state
-> A NAT Gateway was intentionally not used to control assignment cost.
----
-🔐 Security Group Flow
-```text
+
+The infrastructure uses an Internet Gateway for public connectivity.
+Cost decision: A NAT Gateway was intentionally not used for this assignment environment.
+
+🔐 Network Security
+Traffic is restricted using separate security groups.
 Internet
    |
    | TCP 80 / 443
@@ -136,16 +99,17 @@ EC2 Application
    | TCP 5432
    v
 RDS PostgreSQL
-```
-Security groups restrict traffic so that:
-Internet → ALB: `80/443`
-ALB → EC2: `5000`
-EC2 → RDS: `5432`
-RDS is not publicly accessible
----
+Security-group rules
+Source	Destination	Port	Purpose
+Internet	ALB	80/443	Application traffic
+ALB Security Group	EC2 Security Group	5000	Application traffic
+EC2 Security Group	RDS Security Group	5432	PostgreSQL
+
+
+RDS is deployed without public accessibility.
 🚀 CI/CD Pipeline
-GitHub Actions performs automated validation and security checks.
-```text
+GitHub Actions automates testing, security validation, image publishing, and deployment.
+Pull Request
 Pull Request
      |
      +--> Unit Tests
@@ -156,7 +120,7 @@ Pull Request
      +--> Snyk
      +--> SonarCloud
      +--> Container Security Checks
-
+Push to main
 Push to main
      |
      v
@@ -173,132 +137,168 @@ Manual Production Approval
      |
      v
 Production Deployment
-```
-Security checks
-Check	Tool
+Security and quality tooling
+Area	Tool
 Unit testing	pytest
-Integration testing	Docker + curl
+Integration testing	Docker + HTTP health check
 SAST	Semgrep
 Secret scanning	Gitleaks
-Python dependency scan	pip-audit
+Python dependency audit	pip-audit
 Dependency security	Snyk
 Code quality	SonarCloud
-Container security	Trivy
-Container security	Snyk Container
----
-🔑 AWS Authentication
-GitHub Actions uses:
-```text
-GitHub OIDC
-     |
-     v
+Container vulnerability scanning	Trivy
+Container vulnerability scanning	Snyk
+
+
+🔑 Secure AWS Authentication
+GitHub Actions uses OpenID Connect (OIDC) to assume an AWS IAM role.
+GitHub Actions
+      |
+      | OIDC
+      v
 AWS IAM Role
-     |
-     v
+      |
+      v
 AWS Services
-```
-This avoids storing long-lived AWS access keys in GitHub Actions.
-AWS Systems Manager is used to deploy the container to EC2, avoiding the need to expose SSH access for the deployment workflow.
----
-🐳 Docker
-The application image uses:
-Multi-stage Docker build
-Python Alpine runtime
-Gunicorn
-Non-root application user
-Container vulnerability scanning
-Application port:
-```text
+This removes the need for long-lived AWS access keys in the CI/CD workflow.
+AWS Systems Manager is used for remote deployment to EC2 rather than requiring SSH-based deployment.
+🐳 Containerization
+The application is packaged as a Docker image.
+Docker security characteristics
+- Multi-stage Docker build
+- Alpine-based runtime image
+- Non-root application user
+- Gunicorn production server
+- Container vulnerability scanning
+- No Flask development server in the production container
+Application port
 5000
-```
-Health endpoint:
-```text
+Health endpoint
 GET /health
-```
 Expected response:
-```json
 {
   "status": "healthy"
 }
-```
----
-📊 CloudWatch Monitoring
-Two CloudWatch dashboards are configured.
-8Byte-Infrastructure
-The infrastructure dashboard contains:
-EC2 CPU utilization
-EC2 memory utilization
-EC2 disk utilization
-RDS CPU utilization
-RDS database connections
-RDS free storage
-System logs
-Infrastructure Dashboard
-![8Byte Infrastructure Dashboard](docs/screenshots/infrastructure-dashboard.png)
----
-8Byte-Application
-The application dashboard contains:
-Application request count
-Application 4xx errors
-Application 5xx errors
-Application latency
-Healthy target monitoring
-Unhealthy target monitoring
-Application logs
-ALB access logs
-Application Dashboard
-![8Byte Application Dashboard](docs/screenshots/application-dashboard.png)
----
-📝 Centralized Logging
-Application and system logs are centralized in CloudWatch.
-Application logs
-```text
-/8byte-devops/application
-```
-These include Docker/Gunicorn application output and ALB health-check requests reaching the application.
-System logs
-```text
-/8byte-devops/system
-```
-These include systemd, SSM, audit, and other host-level events collected from the EC2 instance.
-ALB access logs
-```text
-/aws/vendedlogs/elasticloadbalancing/loadbalancer/ALB_ACCESS_LOGS/app
-```
-ALB access logs provide request-level information such as:
-Request line
-User agent
-Request source
-Request timing
-ALB traffic information
----
+📦 Amazon ECR
+The Docker image is stored in Amazon ECR.
+GitHub Actions
+      |
+      v
+Docker Build
+      |
+      v
+Security Scans
+      |
+      v
+Amazon ECR
+      |
+      v
+AWS Systems Manager
+      |
+      v
+EC2 Docker Container
+This provides a centralized image registry and separates image build/publish from deployment.
+🖥️ Deployment
+Deployment is performed through AWS Systems Manager.
+GitHub Actions
+      |
+      v
+Amazon ECR
+      |
+      v
+AWS Systems Manager
+      |
+      v
+EC2
+      |
+      v
+Docker
+      |
+      v
+Gunicorn
+The application is exposed through the Application Load Balancer.
+The ALB health-check endpoint is:
+/health
+📊 Monitoring
+Two Amazon CloudWatch dashboards are configured.
+1. 8Byte-Infrastructure
+The infrastructure dashboard tracks:
+- EC2 CPU utilization
+- EC2 memory utilization
+- EC2 disk utilization
+- RDS CPU utilization
+- RDS database connections
+- RDS free storage
+- System logs
+Infrastructure dashboard
+ 
+2. 8Byte-Application
+The application dashboard tracks:
+- Application request count
+- HTTP 4xx errors
+- HTTP 5xx errors
+- Application latency
+- Healthy targets
+- Unhealthy targets
+- Application logs
+- ALB access logs
+Application dashboard
+ 
 🚨 CloudWatch Alarms
-CloudWatch alarms are configured for infrastructure monitoring.
-Current alarms include:
-`EC2_Alarm`
-`RDS_CPU_Alarm`
-Both are shown in an OK state in the captured monitoring view.
-Alarm Dashboard
-![CloudWatch Alarms](docs/screenshots/cloudwatch-alarms.png)
----
-🗄️ Database & Backup
-RDS PostgreSQL is deployed inside the private subnets.
-Security:
-```text
-EC2 Security Group
-        |
-        | TCP 5432
-        v
-RDS Security Group
-```
-RDS automated backups are enabled with:
-```text
-Retention: 1 day
-```
-Database credentials are managed using AWS Secrets Manager rather than being committed to source control.
----
-🏗️ Terraform Structure
-```text
+CloudWatch alarms are configured for operational monitoring.
+Current alarms:
+Alarm	Metric	Condition	Current state
+EC2_Alarm	EC2 CPUUtilization	>= 80%	OK
+RDS_CPU_Alarm	RDS CPUUtilization	>= 80%	OK
+
+
+Alarm evidence
+ 
+The alarms provide a starting point for infrastructure alerting and can be extended with application-specific thresholds as workload requirements increase.
+📝 Centralized Logging
+Logs are collected into CloudWatch Logs.
+Application logs
+/8byte-devops/application
+Application logs include Docker/Gunicorn output and application traffic such as ALB health checks.
+System logs
+/8byte-devops/system
+System logs include host-level events such as systemd, SSM, and audit-related events.
+ALB access logs
+/aws/vendedlogs/elasticloadbalancing/loadbalancer/ALB_ACCESS_LOGS/app
+ALB access logs provide request-level information including:
+- Request line
+- User agent
+- Request source
+- Request timing
+- Load balancer traffic information
+🗄️ RDS PostgreSQL
+RDS PostgreSQL is deployed in the private subnets.
+EC2
+ |
+ | TCP 5432
+ v
+RDS PostgreSQL
+Database protection
+- Private subnet placement
+- Security-group restricted access
+- Encrypted storage
+- Automated backups
+- Credentials managed through AWS Secrets Manager
+Backup
+Automated backup retention: 1 day
+🔐 Secrets Management
+Database credentials are managed using AWS Secrets Manager.
+Terraform
+   |
+   v
+AWS Secrets Manager
+   |
+   v
+Database credentials
+Credentials are not intended to be stored directly in source control.
+🏗️ Terraform
+Terraform is used to provision and manage the AWS infrastructure.
+Structure
 terraform/
 ├── backend.tf
 ├── providers.tf
@@ -313,37 +313,72 @@ terraform/
 │   ├── security-groups/
 │   └── vpc/
 └── environments/
-```
-Terraform state is stored remotely in Amazon S3 with encryption and state locking.
-Initialize Terraform
-```bash
+Terraform modules
+Module	Responsibility
+vpc	VPC and subnet networking
+security-groups	ALB, application, and database security groups
+ec2	EC2 instance and SSM access
+alb	Application Load Balancer and target group
+rds	PostgreSQL database
+
+
+Initialize and validate
 cd terraform
 
 terraform init
 terraform validate
 terraform plan
-```
----
+Terraform state is stored remotely in Amazon S3 with encryption and Terraform state locking.
 🧪 Application Testing
-```bash
+Install dependencies
 cd app
 
 python -m pip install -r requirements.txt
+Run tests
 pytest -v
-```
-Docker test
+Build Docker image
 From the repository root:
-```bash
 docker build -t 8byte-devops-app ./app
+Run locally
 docker run --rm -p 5000:5000 8byte-devops-app
-```
-Test:
-```bash
+Health check
 curl http://localhost:5000/health
-```
----
+Expected:
+{"status":"healthy"}
+🛡️ Security Controls
+AWS
+- GitHub OIDC
+- IAM permissions
+- IMDSv2
+- Private RDS
+- Restricted security groups
+- Encrypted Terraform state
+- Encrypted RDS storage
+- AWS Systems Manager
+CI/CD
+- Semgrep
+- Gitleaks
+- pip-audit
+- Snyk
+- SonarCloud
+- Trivy
+Container
+- Non-root user
+- Multi-stage build
+- Minimal runtime image
+- Gunicorn production server
+- Container vulnerability scanning
+💰 Cost Optimization
+The assignment environment intentionally avoids unnecessary AWS costs.
+Key decisions:
+- t3.micro EC2
+- Small RDS instance
+- No NAT Gateway
+- Limited monitoring scope
+- Assignment-sized infrastructure
+- Resources can be stopped when not required
+For a production environment, sizing, availability, NAT requirements, retention, backup strategy, and alerting thresholds should be reviewed against actual workload requirements.
 📁 Repository Structure
-```text
 8byte-devops-assignment/
 │
 ├── .github/
@@ -384,72 +419,43 @@ curl http://localhost:5000/health
 │   └── 8byte-architecture-diagram.png
 │
 └── README.md
-```
----
-🔒 Security Controls
-AWS / Infrastructure
-IAM least-privilege-oriented permissions
-GitHub OIDC
-IMDSv2
-Private RDS
-Restricted security groups
-Encrypted Terraform state
-Encrypted RDS storage
-AWS Systems Manager for remote management
-CI/CD
-Semgrep SAST
-Gitleaks secret scanning
-pip-audit dependency scanning
-Snyk dependency scanning
-SonarCloud analysis
-Trivy container scanning
-Snyk container scanning
-Container
-Non-root user
-Multi-stage build
-Minimal runtime image
-Gunicorn production server
----
-💰 Cost Optimization
-The assignment environment intentionally avoids unnecessary AWS costs.
-Examples:
-`t3.micro` EC2
-Small RDS instance
-No NAT Gateway
-Limited CloudWatch monitoring scope
-Assignment-focused infrastructure sizing
-For a real production workload, sizing, high availability, NAT requirements, retention periods, and backup strategy should be reviewed according to workload requirements.
----
 📚 Documentation
-Additional project documentation:
-`docs/approach.md` — implementation approach
-`docs/challenges.md` — challenges and resolutions
-`architecture/8byte-architecture-diagram.png` — architecture diagram
----
-🔗 Repository
-GitHub Repository
-https://github.com/akshigour12/8byte-devops-assignment
----
-🎯 Assignment Deliverables
+Document	Description
+[`docs/approach.md`](docs/approach.md)	Implementation approach
+[`docs/challenges.md`](docs/challenges.md)	Challenges and resolutions
+[`architecture/8byte-architecture-diagram.png`](architecture/8byte-architecture-diagram.png)	AWS architecture diagram
+
+
+🎯 Assignment Coverage
 Requirement	Implementation
 Infrastructure as Code	Terraform
-AWS Networking	VPC + public/private subnets
+AWS networking	VPC + public/private subnets
 Compute	EC2 + Docker
-Load Balancing	Application Load Balancer
+Load balancing	Application Load Balancer
 Database	RDS PostgreSQL
+Container registry	Amazon ECR
 CI/CD	GitHub Actions
-Container Registry	Amazon ECR
+AWS authentication	GitHub OIDC
 Deployment	AWS Systems Manager
-AWS Authentication	GitHub OIDC
 Testing	pytest + integration tests
 SAST	Semgrep
-Secret Scanning	Gitleaks
-Dependency Scanning	pip-audit + Snyk
-Container Scanning	Trivy + Snyk
-Code Quality	SonarCloud
+Secret scanning	Gitleaks
+Dependency scanning	pip-audit + Snyk
+Container scanning	Trivy + Snyk
+Code quality	SonarCloud
 Monitoring	CloudWatch
-Logging	CloudWatch Logs
+Centralized logging	CloudWatch Logs
 Alerting	CloudWatch Alarms
-Secrets	AWS Secrets Manager
-Backup	RDS automated backups
+Secret management	AWS Secrets Manager
+Database backup	RDS automated backups
 Documentation	README + approach + challenges
+
+
+🔗 Repository
+GitHub:
+https://github.com/akshigour12/8byte-devops-assignment
+👩‍💻 Author
+Akshita Gour
+DevOps / DevSecOps Engineer
+Focus areas:
+AWS · Terraform · Docker · GitHub Actions · Linux · DevSecOps · CloudWatch · CI/CD
