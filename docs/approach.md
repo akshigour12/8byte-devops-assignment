@@ -39,8 +39,10 @@ EC2
    v
 RDS
 
-
 RDS is deployed in private subnets.
+
+```
+
 ## 3. Terraform State
 
 Terraform state is stored remotely in **Amazon S3**.
@@ -88,6 +90,8 @@ The pipeline performs the following checks:
 
 Successful builds are pushed to **Amazon ECR**.
 
+---
+
 ## 6. Deployment
 
 **AWS Systems Manager (SSM)** is used for EC2 deployment instead of SSH.
@@ -109,6 +113,34 @@ EC2
       v
 Docker + Gunicorn
 
+```
+
+
+## 7. AWS Authentication
+
+GitHub Actions uses **AWS IAM OIDC**.
+
+This avoids storing **long-lived AWS access keys** in GitHub.
+
+---
+
+## 8. Database & Secrets
+
+**RDS PostgreSQL** is deployed in private subnets.
+
+Database access is restricted to the **application security group**.
+
+Security measures include:
+
+- 🔐 Encrypted storage
+- 💾 Automated backups
+- 🔑 AWS Secrets Manager
+- 🚫 Restricted port `5432`
+
+---
+
+## 9. Monitoring & Logging
+
 **Amazon CloudWatch** is used for monitoring and logging.
 
 ### 📊 Monitoring Dashboards
@@ -129,29 +161,24 @@ Logs are centralized in the following CloudWatch log groups:
 ```text
 /8byte-devops/application
 /8byte-devops/system
+```
 
 ## 10. Security & Cost
-
 ### 🔐 Security
-
 Security is integrated throughout the implementation using:
-
-- **IAM**
-- **OIDC**
-- **Security Groups**
-- **IMDSv2**
-- **Private RDS**
-- **AWS Secrets Manager**
-- **Semgrep**
-- **Gitleaks**
-- **Snyk**
-- **Trivy**
-
+- IAM
+- OIDC
+- Security Groups
+- IMDSv2
+- Private RDS
+- AWS Secrets Manager
+- Semgrep
+- Gitleaks
+- Snyk
+- Trivy
 ### 💰 Cost Optimization
-
 Cost is controlled using:
-
-- `t3.micro` EC2 instance
+- t3.micro EC2 instance
 - Small RDS instance
 - No NAT Gateway
 - Lightweight container
