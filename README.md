@@ -61,3 +61,33 @@ EC2
    |
    v
 Docker + Gunicorn
+📐 Architecture
+Application Flow
+Internet
+   |
+   v
+Application Load Balancer
+   |
+   | TCP 5000
+   v
+EC2 + Docker + Gunicorn
+   |
+   | TCP 5432
+   v
+RDS PostgreSQL
+AWS Network Layout
+AWS VPC - 10.0.0.0/16
+|
++-- Public Subnet 1 - 10.0.1.0/24
+|   +-- Application Load Balancer
+|   +-- EC2 Application
+|
++-- Public Subnet 2 - 10.0.2.0/24
+|   +-- Application Load Balancer
+|
++-- Private Subnet 1 - 10.0.11.0/24
+|   +-- RDS PostgreSQL
+|
++-- Private Subnet 2 - 10.0.12.0/24
+    +-- RDS PostgreSQL
+Cost Optimization: A NAT Gateway was intentionally not used in this assignment environment to control cost.
