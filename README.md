@@ -177,3 +177,38 @@ RDS Security Group
 | ALB Security Group | EC2 Security Group | `5000` | Application traffic |
 | EC2 Security Group | RDS Security Group | `5432` | PostgreSQL database traffic |
 
+
+#🔑 Secure AWS Authentication
+
+GitHub Actions authenticates to AWS using **OpenID Connect (OIDC)**, eliminating the need to store long-lived AWS access keys in GitHub Secrets.
+
+```text
+GitHub Actions
+      |
+      | OIDC
+      v
+AWS IAM Role
+      |
+      v
+AWS Services
+
+🔐 Authentication Flow
+1. GitHub Actions starts the CI/CD workflow.
+2. GitHub issues a short-lived OIDC identity token.
+3. AWS IAM validates the token using the configured GitHub OIDC provider.
+4. GitHub Actions assumes the designated IAM Role.
+5. Temporary AWS credentials are provided to the workflow.
+6. The workflow uses these credentials to access the required AWS services.
+Security Benefit: No long-lived AWS access keys or secret access keys are stored in the CI/CD workflow.
+
+🚀 EC2 Deployment
+AWS Systems Manager (SSM) is used for EC2 deployment instead of traditional SSH-based deployment.
+GitHub Actions
+      |
+      | AWS IAM + OIDC
+      v
+AWS Systems Manager
+      |
+      | Run Command
+      v
+EC2 Instance
