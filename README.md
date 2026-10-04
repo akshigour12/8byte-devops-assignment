@@ -125,3 +125,55 @@ Docker + Gunicorn
 - The validated image is pushed to **Amazon ECR**.
 - **AWS Systems Manager** is used to deploy the image to EC2.
 - The application runs inside Docker using **Gunicorn**.
+
+  ## ☁️ AWS Infrastructure
+
+| **Component** | **Configuration** |
+|---|---|
+| **AWS Region** | `ap-south-1` |
+| **VPC CIDR** | `10.0.0.0/16` |
+| **Public Subnets** | 2 |
+| **Private Subnets** | 2 |
+| **Internet Gateway** | Yes |
+| **NAT Gateway** | No |
+| **Compute** | EC2 `t3.micro` |
+| **Load Balancer** | Application Load Balancer (ALB) |
+| **Database** | Amazon RDS PostgreSQL |
+| **Container Registry** | Amazon ECR |
+| **Remote Management** | AWS Systems Manager (SSM) |
+| **Monitoring** | Amazon CloudWatch |
+
+## 🌐 Subnet Configuration
+
+| **Subnet** | **CIDR** | **Purpose** |
+|---|---|---|
+| **Public Subnet 1** | `10.0.1.0/24` | ALB + EC2 |
+| **Public Subnet 2** | `10.0.2.0/24` | ALB |
+| **Private Subnet 1** | `10.0.11.0/24` | RDS |
+| **Private Subnet 2** | `10.0.12.0/24` | RDS |
+
+# 🔐 Network Security
+
+Traffic is restricted using separate **Security Groups** following a least-privilege approach.
+
+```text
+Internet
+   |
+   | TCP 80 / 443
+   v
+ALB Security Group
+   |
+   | TCP 5000
+   v
+EC2 Application Security Group
+   |
+   | TCP 5432
+   v
+RDS Security Group
+
+| **Source** | **Destination** | **Port** | **Purpose** |
+|---|---|---:|---|
+| Internet | ALB Security Group | `80/443` | Application traffic |
+| ALB Security Group | EC2 Security Group | `5000` | Application traffic |
+| EC2 Security Group | RDS Security Group | `5432` | PostgreSQL database traffic |
+
